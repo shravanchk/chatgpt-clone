@@ -2,11 +2,13 @@ import { combineReducers, configureStore } from '@reduxjs/toolkit'
 import { setupListeners } from '@reduxjs/toolkit/query'
 
 import { authSlice } from '../features/auth/authSlice'
+import { chatSlice } from '../features/chat/chatSlice'
 import { api } from './api'
 
 const rootReducer = combineReducers({
   [api.reducerPath]: api.reducer,
   [authSlice.reducerPath]: authSlice.reducer,
+  [chatSlice.reducerPath]: chatSlice.reducer,
 })
 
 export function makeStore(preloadedState?: Partial<RootState>) {

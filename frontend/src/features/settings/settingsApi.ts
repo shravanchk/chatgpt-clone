@@ -12,8 +12,14 @@ export interface UserSettings {
 export type SettingsUpdate = Partial<Pick<UserSettings, 'theme' | 'model' | 'system_prompt'>>
 
 export interface ModelsResponse {
+  provider: 'mock' | 'anthropic'
   models: string[]
   default: string
+}
+
+/** The model replies will actually use: the user's choice if the provider offers it. */
+export function effectiveModel(settings: UserSettings, models: ModelsResponse): string {
+  return models.models.includes(settings.model) ? settings.model : models.default
 }
 
 export const settingsApi = api.injectEndpoints({

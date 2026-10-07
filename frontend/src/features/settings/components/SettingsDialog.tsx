@@ -20,7 +20,9 @@ import {
   useUpdateSettingsMutation,
   type SettingsUpdate,
   type ThemePreference,
+  type ModelsResponse,
   type UserSettings,
+  effectiveModel,
 } from '../settingsApi'
 import { useThemePreference } from '../useThemePreference'
 
@@ -32,29 +34,36 @@ interface SettingsDialogProps {
 }
 
 export function SettingsDialog({ open, onClose }: SettingsDialogProps) {
-  const { data: settings, isLoading } = useGetSettingsQuery(undefined, { skip: !open })
+  const { data: settings } = useGetSettingsQuery(undefined, { skip: !open })
+  const { data: models } = useGetModelsQuery(undefined, { skip: !open })
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
       <DialogTitle>Settings</DialogTitle>
-      {isLoading || !settings ? (
+      {!settings || !models ? (
         <DialogContent sx={{ display: 'grid', placeItems: 'center', minHeight: 200 }}>
           <CircularProgress size={28} />
         </DialogContent>
       ) : (
         // Dialog unmounts its content when closed, so the form re-initialises on each open.
         // Don't key on `updated_at`: saving the theme would reset unsaved edits.
-        <SettingsForm settings={settings} onClose={onClose} />
+        <SettingsForm settings={settings} models={models} onClose={onClose} />
       )}
     </Dialog>
   )
 }
 
-function SettingsForm({ settings, onClose }: { settings: UserSettings; onClose: () => void }) {
+interface SettingsFormProps {
+  settings: UserSettings
+  models: ModelsResponse
+  onClose: () => void
+}
+
+function SettingsForm({ settings, models, onClose }: SettingsFormProps) {
   const { theme, setTheme } = useThemePreference()
-  const { data: models } = useGetModelsQuery()
   const [updateSettings, { isLoading: isSaving, error }] = useUpdateSettingsMutation()
-  const [model, setModel] = useState(settings.model)
+  // Start from the model replies actually use (a stored choice may not be offered).
+  const [model, setModel] = useState(effectiveModel(settings, models))
   const [systemPrompt, setSystemPrompt] = useState(settings.system_prompt ?? '')
 
   const handleSave = async () => {
@@ -102,7 +111,7 @@ function SettingsForm({ settings, onClose }: { settings: UserSettings; onClose: 
             onChange={(e) => setModel(e.target.value)}
             helperText="Used for new responses"
           >
-            {(models?.models ?? [settings.model]).map((name) => (
+            {models.models.map((name) => (
               <MenuItem key={name} value={name}>
                 {name}
               </MenuItem>

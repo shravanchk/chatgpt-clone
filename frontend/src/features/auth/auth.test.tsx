@@ -6,10 +6,10 @@ import {
   apiError,
   authResponse,
   calls,
-  defaultSettings,
   json,
   mockApi,
   renderApp,
+  signedInDefaults,
 } from '../../test/utils'
 
 const anonymous = () =>
@@ -26,8 +26,8 @@ describe('auth flow', () => {
 
   it('restores the session from the refresh cookie on load', async () => {
     const fetchMock = mockApi({
+      ...signedInDefaults,
       'POST /auth/refresh': () => json(authResponse()),
-      'GET /users/me/settings': () => json(defaultSettings),
     })
 
     renderApp('/')
@@ -65,9 +65,12 @@ describe('auth flow', () => {
 
   it('logs in and returns to the page the user wanted', async () => {
     mockApi({
+      ...signedInDefaults,
       'POST /auth/refresh': anonymous,
       'POST /auth/login': () => json(authResponse()),
-      'GET /users/me/settings': () => json(defaultSettings),
+      'GET /conversations/123': () =>
+        json({ id: '123', title: 'Trip ideas', created_at: '2026-10-07T00:00:00Z', updated_at: '2026-10-07T00:00:00Z' }),
+      'GET /conversations/123/messages': () => json({ items: [], next_cursor: null }),
     })
     const { router } = renderApp('/c/123')
     const user = userEvent.setup()
@@ -76,7 +79,7 @@ describe('auth flow', () => {
     await user.type(screen.getByLabelText(/password/i), 'correct-horse-battery')
     await user.click(screen.getByRole('button', { name: 'Log in' }))
 
-    expect(await screen.findByText('What can I help with, Alice?')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Trip ideas' })).toBeInTheDocument()
     expect(router.state.location.pathname).toBe('/c/123')
   })
 
@@ -104,8 +107,8 @@ describe('auth flow', () => {
 
   it('logs out from the account menu', async () => {
     mockApi({
+      ...signedInDefaults,
       'POST /auth/refresh': () => json(authResponse()),
-      'GET /users/me/settings': () => json(defaultSettings),
       'POST /auth/logout': () => new Response(null, { status: 204 }),
     })
     renderApp('/')

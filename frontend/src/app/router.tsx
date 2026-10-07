@@ -1,9 +1,9 @@
 import { Navigate, type RouteObject } from 'react-router'
 
 import { GuestOnly, RequireAuth, SessionGate } from '../features/auth/components/RouteGuards'
-import { LoginPage } from '../features/auth/pages/LoginPage'
-import { RegisterPage } from '../features/auth/pages/RegisterPage'
-import { ChatPage } from '../features/chat/pages/ChatPage'
+
+// Route-level code splitting: auth pages and the chat app load as separate chunks.
+const lazyRoute = (load: () => Promise<{ Component: React.ComponentType }>) => ({ lazy: load })
 
 export const routes: RouteObject[] = [
   {
@@ -12,15 +12,44 @@ export const routes: RouteObject[] = [
       {
         element: <GuestOnly />,
         children: [
-          { path: '/login', element: <LoginPage /> },
-          { path: '/register', element: <RegisterPage /> },
+          {
+            path: '/login',
+            ...lazyRoute(() =>
+              import('../features/auth/pages/LoginPage').then((m) => ({ Component: m.LoginPage })),
+            ),
+          },
+          {
+            path: '/register',
+            ...lazyRoute(() =>
+              import('../features/auth/pages/RegisterPage').then((m) => ({
+                Component: m.RegisterPage,
+              })),
+            ),
+          },
         ],
       },
       {
         element: <RequireAuth />,
         children: [
-          { path: '/', element: <ChatPage /> },
-          { path: '/c/:conversationId', element: <ChatPage /> },
+          {
+            ...lazyRoute(() =>
+              import('../features/chat/pages/ChatLayout').then((m) => ({ Component: m.ChatLayout })),
+            ),
+            children: [
+              {
+                path: '/',
+                ...lazyRoute(() =>
+                  import('../features/chat/pages/ChatPage').then((m) => ({ Component: m.ChatPage })),
+                ),
+              },
+              {
+                path: '/c/:conversationId',
+                ...lazyRoute(() =>
+                  import('../features/chat/pages/ChatPage').then((m) => ({ Component: m.ChatPage })),
+                ),
+              },
+            ],
+          },
         ],
       },
       { path: '*', element: <Navigate to="/" replace /> },
