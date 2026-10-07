@@ -10,7 +10,8 @@ request_id_ctx: ContextVar[str | None] = ContextVar("request_id", default=None)
 
 # Attributes every LogRecord has; anything else was passed via `extra=` and is emitted.
 _STANDARD_ATTRS = frozenset(
-    vars(logging.LogRecord("", 0, "", 0, "", None, None)).keys() | {"message", "asctime"}
+    vars(logging.LogRecord("", 0, "", 0, "", None, None)).keys()
+    | {"message", "asctime", "color_message"}  # uvicorn adds ANSI-colored duplicates
 )
 
 
