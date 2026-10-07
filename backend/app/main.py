@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1 import api_router
+from app.cache.redis import create_redis
 from app.core.config import Settings, get_settings
 from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
@@ -24,10 +25,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         engine = create_engine(settings.database_url)
         app.state.session_factory = create_session_factory(engine)
+        app.state.redis = create_redis(settings.redis_url)
         yield
+        await app.state.redis.aclose()
         await engine.dispose()
 
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
+    app.state.settings = settings
 
     app.add_middleware(
         CORSMiddleware,
