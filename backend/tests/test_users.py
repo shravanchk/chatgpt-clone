@@ -66,3 +66,15 @@ async def test_users_only_see_their_own_data(client: AsyncClient, register: Regi
 async def test_settings_require_auth(client: AsyncClient) -> None:
     assert (await client.get(SETTINGS)).status_code == 401
     assert (await client.patch(SETTINGS, json={"theme": "dark"})).status_code == 401
+
+
+async def test_models_lists_available_models(client: AsyncClient, register: RegisterFn) -> None:
+    token = (await register())["access_token"]
+
+    response = await client.get("/api/v1/models", headers=bearer(token))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "models": ["mock", "claude-sonnet-5-5", "claude-haiku-4-5"],
+        "default": "mock",
+    }
