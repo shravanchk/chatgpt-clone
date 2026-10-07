@@ -4,7 +4,7 @@ A full-stack clone of the ChatGPT chat UI: FastAPI + PostgreSQL + Redis on the b
 React + TypeScript + Material UI on the frontend, with streamed responses over SSE.
 It runs with **one command and no API key**.
 
-> **Status:** Phase 1 (scaffolding and infrastructure) is complete. Features are being added in phases.
+> **Status:** Phases 1 (infrastructure) and 2 (auth, users, settings) are complete. Chat is next.
 
 - Architecture and design decisions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Diagrams (system, ER, auth flow, streaming, caching): [docs/diagrams.md](docs/diagrams.md)
@@ -54,6 +54,9 @@ npm run dev   # http://localhost:5173
 
 ## Quality checks
 
+Backend tests need Postgres running (`docker compose up -d db`); they create and migrate
+a separate `chatgpt_test` database automatically.
+
 ```bash
 # backend
 cd backend && uv run ruff check . && uv run ruff format --check . && uv run mypy app tests && uv run pytest
@@ -70,9 +73,13 @@ All configuration comes from environment variables. See [.env.example](.env.exam
 |---|---|---|
 | `DATABASE_URL` | `postgresql+asyncpg://…@db:5432/chatgpt` | Async SQLAlchemy URL |
 | `REDIS_URL` | `redis://redis:6379/0` | Cache and rate limiting |
-| `JWT_SECRET` | dev placeholder | **Set a long random value outside local dev** |
+| `JWT_SECRET` | dev placeholder | **At least 32 characters; set a random value outside local dev** |
 | `JWT_ACCESS_TTL_MINUTES` | `15` | Access token lifetime |
 | `REFRESH_TTL_DAYS` | `7` | Refresh token lifetime |
+| `BCRYPT_ROUNDS` | `12` | bcrypt cost factor |
+| `RATE_LIMIT_LOGIN_PER_MINUTE` | `10` | Login attempts per IP per minute |
+| `RATE_LIMIT_REGISTER_PER_MINUTE` | `5` | Sign-ups per IP per minute |
+| `AVAILABLE_MODELS` | `mock,claude-sonnet-5-5,claude-haiku-4-5` | Models selectable in settings |
 | `COOKIE_SECURE` | `true` | `Secure` flag on the refresh cookie (browsers allow it on `localhost`) |
 | `CORS_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Allowed browser origins |
 | `LLM_PROVIDER` | `mock` | `mock` (no key) or `anthropic` |

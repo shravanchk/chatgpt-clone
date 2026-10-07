@@ -7,6 +7,7 @@ All diagrams are [Mermaid](https://mermaid.js.org/) and render natively on GitHu
 - [Entity-relationship diagram](#entity-relationship-diagram)
 - [Request lifecycle](#request-lifecycle)
 - [Authentication flow](#authentication-flow)
+- [Frontend silent re-authentication](#frontend-silent-re-authentication)
 - [Refresh-token rotation and reuse detection](#refresh-token-rotation-and-reuse-detection)
 - [Send message + SSE streaming](#send-message--sse-streaming)
 - [Conversation list caching](#conversation-list-caching)
@@ -177,12 +178,12 @@ sequenceDiagram
         API-->>FE: 429 rate_limited
     end
     API->>DB: find user by lowercase email
-    API->>API: bcrypt.verify(password, hash)
+    API->>API: bcrypt.verify in a worker thread<br/>(dummy verify for unknown emails: equal timing)
     alt invalid credentials
-        API-->>FE: 401 invalid_credentials (same message for unknown email)
+        API-->>FE: 401 invalid_credentials (same body for unknown email)
     end
-    API->>DB: INSERT refresh_tokens(token_hash = sha256(random))
-    API-->>FE: 200 {access_token (JWT, 15 min)}<br/>Set-Cookie: refresh_token (httpOnly, Secure, SameSite=Lax, 7d)
+    API->>DB: INSERT refresh_tokens(token_hash = sha256(random 256-bit))
+    API-->>FE: 200 {user, access_token (JWT, 15 min)}<br/>Set-Cookie: refresh_token (httpOnly, Secure, SameSite=Lax,<br/>Path=/api/v1/auth, 7d)
     FE->>FE: keep access token in Redux memory only
 
     Note over FE,API: Authenticated calls
@@ -191,7 +192,38 @@ sequenceDiagram
 
     Note over FE,API: Page reload or access token expired
     FE->>API: POST /auth/refresh (cookie sent automatically)
-    API-->>FE: 200 new access token + rotated cookie
+    API-->>FE: 200 {user, new access token} + rotated cookie
+```
+
+`POST /auth/register` follows the same path: it returns **201** with the same body and
+cookie, so a new user is logged in immediately.
+
+## Frontend silent re-authentication
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Component (RTK Query hook)
+    participant BQ as baseQueryWithReauth
+    participant L as single-flight refresh lock
+    participant API as FastAPI
+
+    C->>BQ: GET /users/me/settings
+    BQ->>API: request + Bearer (expired)
+    API-->>BQ: 401 token_expired
+    BQ->>L: refreshSession()
+    Note over L: parallel 401s await the same promise,<br/>so only one refresh hits the server
+    L->>API: POST /auth/refresh (cookie)
+    alt 200
+        API-->>L: {user, access_token} + rotated cookie
+        L->>L: dispatch credentialsReceived
+        BQ->>API: retry original request with new token
+        API-->>C: 200 data
+    else 401 (another tab may have just rotated the cookie)
+        L->>L: wait 250 ms, retry once
+        L->>L: still 401: dispatch loggedOut
+        Note over C: RequireAuth redirects to /login
+    end
 ```
 
 ## Refresh-token rotation and reuse detection
@@ -200,10 +232,12 @@ sequenceDiagram
 flowchart TD
     A[POST /auth/refresh with cookie] --> B{token_hash found?}
     B -- no --> X1[401 invalid_refresh_token]
-    B -- yes --> C{revoked_at set?}
-    C -- yes --> R["Reuse detected: likely stolen token<br/>revoke ALL tokens of this user"] --> X2[401, clear cookie]
+    B -- yes --> L["SELECT ... FOR UPDATE<br/>(serializes concurrent refreshes)"] --> C{revoked_at set?}
+    C -- yes --> W{"revoked less than<br/>10 s ago?"}
+    W -- "yes: benign race<br/>(two tabs refreshed together)" --> X4[401 only]
+    W -- no --> R["Reuse detected: likely stolen token<br/>revoke ALL tokens of this user"] --> X2[401]
     C -- no --> D{expired?}
-    D -- yes --> X3[401, clear cookie]
+    D -- yes --> X3[401]
     D -- no --> E[revoke presented token]
     E --> F[insert new token row]
     F --> G[issue new JWT + Set-Cookie new refresh token]
