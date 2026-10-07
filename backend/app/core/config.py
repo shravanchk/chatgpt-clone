@@ -30,14 +30,21 @@ class Settings(BaseSettings):
 
     rate_limit_login_per_minute: int = 10
     rate_limit_register_per_minute: int = 5
+    rate_limit_messages_per_minute: int = 20
+
+    conversation_cache_ttl_seconds: int = 60
+    # How many recent messages are sent to the model as context.
+    llm_context_messages: int = 20
 
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:3000"]
 
     llm_provider: Literal["mock", "anthropic"] = "mock"
     anthropic_api_key: str | None = None
-    anthropic_model: str = "claude-sonnet-5-5"
+    anthropic_model: str = "claude-opus-5-5"
+    mock_stream_delay_ms: int = 20
     available_models: Annotated[list[str], NoDecode] = [
         "mock",
+        "claude-opus-5-5",
         "claude-sonnet-5-5",
         "claude-haiku-4-5",
     ]

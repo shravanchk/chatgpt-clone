@@ -75,6 +75,6 @@ async def test_models_lists_available_models(client: AsyncClient, register: Regi
 
     assert response.status_code == 200
     assert response.json() == {
-        "models": ["mock", "claude-sonnet-5-5", "claude-haiku-4-5"],
+        "models": ["mock", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"],
         "default": "mock",
     }

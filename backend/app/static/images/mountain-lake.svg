@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" role="img" aria-labelledby="title">
+  <title id="title">Mountain lake at sunset</title>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1e1b4b"/>
+      <stop offset="0.45" stop-color="#7c3aed"/>
+      <stop offset="0.75" stop-color="#f97316"/>
+      <stop offset="1" stop-color="#fde68a"/>
+    </linearGradient>
+    <linearGradient id="lake" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#fb923c" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#1e1b4b"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="300" fill="url(#sky)"/>
+  <circle cx="400" cy="250" r="60" fill="#fef3c7" opacity="0.9"/>
+  <path d="M0 300 L120 150 L210 240 L330 90 L450 230 L560 130 L680 250 L800 160 L800 300 Z" fill="#312e81"/>
+  <path d="M0 300 L90 220 L180 270 L300 190 L420 280 L540 210 L650 275 L800 220 L800 300 Z" fill="#1e1b4b"/>
+  <rect y="300" width="800" height="150" fill="url(#lake)"/>
+  <g stroke="#fef3c7" stroke-linecap="round" opacity="0.6">
+    <line x1="360" y1="320" x2="440" y2="320" stroke-width="4"/>
+    <line x1="375" y1="345" x2="425" y2="345" stroke-width="3"/>
+    <line x1="388" y1="368" x2="412" y2="368" stroke-width="2"/>
+  </g>
+</svg>
