@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Literal, get_args
 from sqlalchemy import CheckConstraint, DateTime, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.db.base import Base
+from app.db.base import Base, utc_now
 
 if TYPE_CHECKING:
     from app.models.user import User
@@ -25,7 +25,11 @@ class UserSettings(Base):
     model: Mapped[str] = mapped_column(String(100), nullable=False, server_default="mock")
     system_prompt: Mapped[str | None] = mapped_column(Text)
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        server_default=func.now(),
+        nullable=False,
     )
 
     user: Mapped["User"] = relationship(back_populates="settings", lazy="raise")

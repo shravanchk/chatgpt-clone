@@ -1,6 +1,6 @@
 """Declarative base with a naming convention so Alembic generates stable constraint names."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import DateTime, MetaData, func
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
@@ -18,13 +18,26 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+# Timestamps are set in Python (server_default only covers raw SQL inserts). Postgres' now()
+# is the *transaction* start time, so rows written in one transaction would tie and lose
+# their order (e.g. a user message and its assistant reply).
+
+
 class CreatedAtMixin:
     created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
+        DateTime(timezone=True), default=utc_now, server_default=func.now(), nullable=False
     )
 
 
 class TimestampMixin(CreatedAtMixin):
     updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
+        DateTime(timezone=True),
+        default=utc_now,
+        onupdate=utc_now,
+        server_default=func.now(),
+        nullable=False,
     )
