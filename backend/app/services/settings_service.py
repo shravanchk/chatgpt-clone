@@ -25,11 +25,11 @@ class SettingsService:
     async def update(self, user_id: uuid.UUID, data: SettingsUpdate) -> UserSettings:
         changes = data.model_dump(exclude_unset=True)
         model = changes.get("model")
-        if model is not None and model not in self.app_settings.available_models:
+        if model is not None and model not in self.app_settings.selectable_models:
             raise UnprocessableError(
                 f"Unknown model '{model}'",
                 code="invalid_model",
-                details={"available_models": self.app_settings.available_models},
+                details={"available_models": self.app_settings.selectable_models},
             )
 
         settings = await self.get(user_id)

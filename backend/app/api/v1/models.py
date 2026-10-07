@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 
@@ -7,11 +9,13 @@ router = APIRouter(prefix="/models", tags=["models"])
 
 
 class ModelsOut(BaseModel):
+    provider: Literal["mock", "anthropic"]
     models: list[str]
     default: str
 
 
 @router.get("")
 async def list_models(_: CurrentUser, settings: AppSettings) -> ModelsOut:
-    """Models a user may select in their settings."""
-    return ModelsOut(models=settings.available_models, default=settings.available_models[0])
+    """The active LLM provider and the models a user may select in their settings."""
+    models = settings.selectable_models
+    return ModelsOut(provider=settings.llm_provider, models=models, default=models[0])

@@ -42,12 +42,20 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-opus-5-5"
     mock_stream_delay_ms: int = 20
+    # Claude models users may pick when LLM_PROVIDER=anthropic.
     available_models: Annotated[list[str], NoDecode] = [
-        "mock",
         "claude-opus-5-5",
         "claude-sonnet-5-5",
         "claude-haiku-4-5",
     ]
+
+    @property
+    def selectable_models(self) -> list[str]:
+        """Models the active provider can serve; the first is the default."""
+        if self.llm_provider == "mock":
+            return ["mock"]
+        default = self.anthropic_model
+        return [default, *(m for m in self.available_models if m != default)]
 
     @field_validator("cors_origins", "available_models", mode="before")
     @classmethod

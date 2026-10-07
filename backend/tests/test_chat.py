@@ -164,7 +164,7 @@ async def test_provider_receives_history_and_user_settings(
     app.state.llm = provider
     await client.patch(
         "/api/v1/users/me/settings",
-        json={"system_prompt": "Be brief.", "model": "claude-haiku-4-5"},
+        json={"system_prompt": "Be brief."},
         headers=alice,
     )
     cid = await _new_conversation(client, alice)
@@ -178,7 +178,7 @@ async def test_provider_receives_history_and_user_settings(
         ("assistant", "ok"),
         ("user", "second"),
     ]
-    assert settings == GenerationSettings(model="claude-haiku-4-5", system_prompt="Be brief.")
+    assert settings == GenerationSettings(model="mock", system_prompt="Be brief.")
 
 
 # --- failure midway ------------------------------------------------------------------

@@ -74,7 +74,18 @@ async def test_models_lists_available_models(client: AsyncClient, register: Regi
     response = await client.get("/api/v1/models", headers=bearer(token))
 
     assert response.status_code == 200
-    assert response.json() == {
-        "models": ["mock", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5"],
-        "default": "mock",
-    }
+    assert response.json() == {"provider": "mock", "models": ["mock"], "default": "mock"}
+
+
+def test_anthropic_provider_offers_claude_models_with_default_first() -> None:
+    from app.core.config import Settings
+
+    settings = Settings(
+        llm_provider="anthropic", anthropic_api_key="test", anthropic_model="claude-sonnet-5-5"
+    )
+
+    assert settings.selectable_models == [
+        "claude-sonnet-5-5",
+        "claude-opus-5-5",
+        "claude-haiku-4-5",
+    ]
