@@ -1,8 +1,6 @@
-import { createApi, fetchBaseQuery } from '@reduxjs/toolkit/query/react'
+import { createApi } from '@reduxjs/toolkit/query/react'
 
-export interface HealthResponse {
-  status: 'ok'
-}
+import { baseQueryWithReauth } from './baseQuery'
 
 /**
  * Single RTK Query API; feature modules extend it with `api.injectEndpoints`.
@@ -10,15 +8,7 @@ export interface HealthResponse {
  */
 export const api = createApi({
   reducerPath: 'api',
-  // Absolute URL so the same code works in the browser and in jsdom tests.
-  baseQuery: fetchBaseQuery({
-    baseUrl: `${window.location.origin}/api/v1`,
-    credentials: 'include',
-  }),
-  tagTypes: ['Me', 'Settings', 'Conversation', 'Message'],
-  endpoints: (build) => ({
-    getHealth: build.query<HealthResponse, void>({ query: () => '/health' }),
-  }),
+  baseQuery: baseQueryWithReauth,
+  tagTypes: ['Settings', 'Conversation', 'Message'],
+  endpoints: () => ({}),
 })
-
-export const { useGetHealthQuery } = api

@@ -1,17 +1,15 @@
 import Box from '@mui/material/Box'
-import Chip from '@mui/material/Chip'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { Link as RouterLink } from 'react-router'
-import Link from '@mui/material/Link'
 
-import { useGetHealthQuery } from '../../../app/api'
+import { useAppSelector } from '../../../app/hooks'
 import { ThemeModeToggle } from '../../../components/ThemeModeToggle'
+import { UserMenu } from '../../auth/components/UserMenu'
+import { selectCurrentUser } from '../../auth/authSlice'
 
-/** Placeholder; sidebar, message list and composer land in the chat phase. */
+/** Placeholder shell; sidebar, message list and composer land in the chat phase. */
 export function ChatPage() {
-  const { isSuccess, isError } = useGetHealthQuery()
-  const apiStatus = isSuccess ? 'API online' : isError ? 'API offline' : 'Checking API…'
+  const user = useAppSelector(selectCurrentUser)
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100dvh' }}>
@@ -27,25 +25,23 @@ export function ChatPage() {
         }}
       />
       <Stack component="main" sx={{ flex: 1 }}>
-        <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', p: 1 }}>
+        <Stack
+          component="header"
+          direction="row"
+          sx={{ alignItems: 'center', justifyContent: 'space-between', p: 1 }}
+        >
           <Typography variant="h6" component="h1" sx={{ px: 1 }}>
             ChatGPT Clone
           </Typography>
-          <ThemeModeToggle />
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+            <ThemeModeToggle />
+            <UserMenu />
+          </Stack>
         </Stack>
-        <Stack spacing={2} sx={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <Typography variant="h4" component="p" sx={{ fontWeight: 600 }}>
-            What can I help with?
+        <Stack sx={{ flex: 1, alignItems: 'center', justifyContent: 'center', px: 2 }}>
+          <Typography variant="h4" component="p" sx={{ fontWeight: 600, textAlign: 'center' }}>
+            {user ? `What can I help with, ${user.display_name}?` : 'What can I help with?'}
           </Typography>
-          <Chip
-            label={apiStatus}
-            color={isSuccess ? 'success' : isError ? 'error' : 'default'}
-            variant="outlined"
-            size="small"
-          />
-          <Link component={RouterLink} to="/login">
-            Go to login
-          </Link>
         </Stack>
       </Stack>
     </Box>
