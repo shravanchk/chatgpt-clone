@@ -4,7 +4,7 @@ A full-stack clone of the ChatGPT chat UI: FastAPI + PostgreSQL + Redis on the b
 React + TypeScript + Material UI on the frontend, with streamed responses over SSE.
 It runs with **one command and no API key**.
 
-> **Status:** Phases 1 (infrastructure) and 2 (auth, users, settings) are complete. Chat is next.
+> **Status:** Backend complete: auth, settings, conversations, streaming chat, cache, export. The chat UI is next.
 
 - Architecture and design decisions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Diagrams (system, ER, auth flow, streaming, caching): [docs/diagrams.md](docs/diagrams.md)
@@ -25,6 +25,19 @@ docker compose up --build
 
 Database migrations run automatically when the backend container starts.
 To override defaults, copy `.env.example` to `.env` and edit it.
+
+## Try the API
+
+The interactive docs at http://localhost:8000/docs cover every endpoint. To watch a streamed
+reply in a terminal after registering and creating a conversation:
+
+```bash
+curl -N -X POST http://localhost:3000/api/v1/conversations/$CONVERSATION_ID/messages \
+  -H "Authorization: Bearer $ACCESS_TOKEN" -H "Content-Type: application/json" \
+  -d '{"content": "show me a chart"}'
+```
+
+The mock model answers by keyword: try **table**, **list**, **code**, **chart** or **image**.
 
 ## Local development (without Docker for app code)
 
@@ -82,8 +95,13 @@ All configuration comes from environment variables. See [.env.example](.env.exam
 | `AVAILABLE_MODELS` | `mock,claude-sonnet-5-5,claude-haiku-4-5` | Models selectable in settings |
 | `COOKIE_SECURE` | `true` | `Secure` flag on the refresh cookie (browsers allow it on `localhost`) |
 | `CORS_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Allowed browser origins |
+| `RATE_LIMIT_MESSAGES_PER_MINUTE` | `20` | Messages sent per user per minute |
+| `CONVERSATION_CACHE_TTL_SECONDS` | `60` | TTL of the cached conversation list |
+| `LLM_CONTEXT_MESSAGES` | `20` | Recent messages sent to the model as context |
 | `LLM_PROVIDER` | `mock` | `mock` (no key) or `anthropic` |
+| `MOCK_STREAM_DELAY_MS` | `20` | Delay between mock chunks, so streaming is visible |
 | `ANTHROPIC_API_KEY` | empty | Required only when `LLM_PROVIDER=anthropic` |
+| `ANTHROPIC_MODEL` | `claude-opus-5-5` | Model used when a user's setting is `mock` but the provider is Anthropic |
 | `LOG_LEVEL` | `INFO` | Log level for the JSON logs |
 
 ## Repository layout

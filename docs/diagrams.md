@@ -249,32 +249,41 @@ flowchart TD
 sequenceDiagram
     autonumber
     participant FE as React (fetch + ReadableStream)
-    participant API as ChatService
+    participant R as Router
+    participant CS as ChatService
     participant DB as PostgreSQL
     participant RC as Redis
     participant LLM as LLMProvider
 
-    FE->>API: POST /conversations/{id}/messages {content}
-    API->>RC: rate-limit check (429 if exceeded)
-    API->>DB: verify conversation belongs to user (else 404)
-    API->>DB: INSERT user message (status=complete)
-    API->>DB: INSERT assistant message (status=streaming)
-    API->>RC: DEL user:{id}:conversations
-    API-->>FE: event: message_start {user_message_id, assistant_message_id}
-    API->>LLM: stream(history, settings)
-    loop each token
-        LLM-->>API: text chunk
-        API-->>FE: event: delta {text}
+    FE->>R: POST /conversations/{id}/messages {content}
+    R->>RC: per-user rate limit (429 + Retry-After if exceeded)
+    Note over R,DB: Phase 1 - prepare (request session, errors are plain HTTP)
+    R->>CS: prepare()
+    CS->>DB: conversation owned by user? (else 404)
+    CS->>DB: last N complete messages (LLM context)
+    CS->>DB: INSERT user message (complete)<br/>INSERT assistant placeholder (streaming)<br/>auto-title on first message, touch updated_at
+    CS->>DB: COMMIT
+    CS->>RC: DEL user:{id}:conversations
+    R-->>FE: 200 text/event-stream
+    Note over CS,LLM: Phase 2 - stream (own DB session, outlives the request)
+    CS-->>FE: event: message_start {user_message, assistant_message_id, title}
+    CS->>LLM: stream(history, {model, system_prompt})
+    loop each chunk
+        LLM-->>CS: TextDelta
+        CS-->>FE: event: delta {text}
     end
-    LLM-->>API: follow-up actions
-    API-->>FE: event: actions [{label, prompt}, ...]
+    LLM-->>CS: ActionsEvent
+    CS-->>FE: event: actions [{label, prompt}]
     alt completed
-        API->>DB: UPDATE assistant message (content, metadata.actions, status=complete)
-        API-->>FE: event: message_end {message}
-    else provider error or client disconnect
-        API->>DB: UPDATE assistant message (partial content, status=error)
-        API-->>FE: event: error {code, message}
+        CS->>DB: UPDATE assistant: content, metadata.actions, status=complete
+        CS-->>FE: event: message_end {message}
+    else provider error
+        CS->>DB: UPDATE assistant: partial content, status=error
+        CS-->>FE: event: error {code, message}
+    else client disconnected (tab closed / Stop)
+        CS->>DB: UPDATE assistant: partial content, status=error<br/>(shielded from cancellation)
     end
+    CS->>RC: DEL user:{id}:conversations
 ```
 
 ## Conversation list caching
