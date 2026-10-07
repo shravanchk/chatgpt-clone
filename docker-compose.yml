@@ -36,7 +36,7 @@ services:
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-chatgpt}:${POSTGRES_PASSWORD:-change-me}@db:5432/${POSTGRES_DB:-chatgpt}
       REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-secret-change-me}
+      JWT_SECRET: ${JWT_SECRET:-dev-only-insecure-secret-change-me-0123456789}
       JWT_ACCESS_TTL_MINUTES: ${JWT_ACCESS_TTL_MINUTES:-15}
       REFRESH_TTL_DAYS: ${REFRESH_TTL_DAYS:-7}
       COOKIE_SECURE: ${COOKIE_SECURE:-true}

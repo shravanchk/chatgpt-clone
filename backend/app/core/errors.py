@@ -23,11 +23,17 @@ class AppError(Exception):
     message: str = "Bad request"
 
     def __init__(
-        self, message: str | None = None, *, code: str | None = None, details: Any = None
+        self,
+        message: str | None = None,
+        *,
+        code: str | None = None,
+        details: Any = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.message = message or self.message
         self.code = code or self.code
         self.details = details
+        self.headers = headers
         super().__init__(self.message)
 
 
@@ -35,6 +41,9 @@ class UnauthorizedError(AppError):
     status_code = status.HTTP_401_UNAUTHORIZED
     code = "unauthorized"
     message = "Authentication required"
+
+    def __init__(self, message: str | None = None, *, code: str | None = None) -> None:
+        super().__init__(message, code=code, headers={"WWW-Authenticate": "Bearer"})
 
 
 class NotFoundError(AppError):
@@ -49,10 +58,23 @@ class ConflictError(AppError):
     message = "Resource already exists"
 
 
+class UnprocessableError(AppError):
+    """Semantically invalid input that passed schema validation (e.g. unknown model)."""
+
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
+    code = "validation_error"
+    message = "Request validation failed"
+
+
 class RateLimitedError(AppError):
     status_code = status.HTTP_429_TOO_MANY_REQUESTS
     code = "rate_limited"
     message = "Too many requests, please slow down"
+
+    def __init__(self, retry_after: int) -> None:
+        super().__init__(
+            details={"retry_after": retry_after}, headers={"Retry-After": str(retry_after)}
+        )
 
 
 def error_body(code: str, message: str, details: Any = None) -> dict[str, Any]:
@@ -61,7 +83,9 @@ def error_body(code: str, message: str, details: Any = None) -> dict[str, Any]:
 
 async def _app_error_handler(_: Request, exc: AppError) -> JSONResponse:
     return JSONResponse(
-        status_code=exc.status_code, content=error_body(exc.code, exc.message, exc.details)
+        status_code=exc.status_code,
+        content=error_body(exc.code, exc.message, exc.details),
+        headers=exc.headers,
     )
 
 
