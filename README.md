@@ -4,10 +4,34 @@ A full-stack clone of the ChatGPT chat UI: FastAPI + PostgreSQL + Redis on the b
 React + TypeScript + Material UI on the frontend, with streamed responses over SSE.
 It runs with **one command and no API key**.
 
-> **Status:** Backend complete: auth, settings, conversations, streaming chat, cache, export. The chat UI is next.
+> **Status:** Feature-complete. All core requirements and every listed bonus feature are implemented (see below).
 
 - Architecture and design decisions: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Diagrams (system, ER, auth flow, streaming, caching): [docs/diagrams.md](docs/diagrams.md)
+
+## Features
+
+| Requirement | Where it lives |
+|---|---|
+| Users, auth, persistence | Register/login, JWT access token in memory + rotating httpOnly refresh cookie, PostgreSQL |
+| Conversations & messages | Sidebar with recency groups, rename, delete, infinite list; paginated history |
+| Settings | Theme (light/dark/system), model, custom instructions, stored per user |
+| Streaming | Server-Sent Events over `fetch`, token by token, with a **Stop** button |
+| Rich content | Markdown tables, nested and task lists, images, syntax-highlighted code |
+| Action buttons | Follow-up suggestions under each reply; one click sends the prompt |
+| **Bonus:** caching, Docker, migrations | Redis cache-aside and rate limits · `docker compose up` · Alembic |
+| **Bonus:** charts, code highlighting, dark mode | Recharts from ```` ```chart ```` blocks · Prism · MUI color schemes |
+| **Bonus:** search, copy, Markdown, export | Title and message search · copy buttons · react-markdown · export as `.md` or `.json` |
+
+## Screenshots
+
+| New chat (light) | Streamed table (dark) | Chart + follow-up actions |
+|---|---|---|
+| ![New chat](docs/screenshots/new-chat-light.jpg) | ![Table](docs/screenshots/table-dark.jpg) | ![Chart](docs/screenshots/chart-and-actions-dark.jpg) |
+
+| Code highlighting | Sidebar with search and history |
+|---|---|
+| ![Code](docs/screenshots/code-dark.jpg) | ![Sidebar](docs/screenshots/sidebar-dark.jpg) |
 
 ## Quick start (Docker)
 
@@ -19,7 +43,7 @@ docker compose up --build
 
 | URL | What |
 |---|---|
-| http://localhost:3000 | Web app |
+| http://localhost:3000 | Web app: register an account, then try the suggestions |
 | http://localhost:8000/docs | OpenAPI / Swagger UI |
 | http://localhost:8000/api/v1/health | Liveness check |
 
@@ -92,7 +116,7 @@ All configuration comes from environment variables. See [.env.example](.env.exam
 | `BCRYPT_ROUNDS` | `12` | bcrypt cost factor |
 | `RATE_LIMIT_LOGIN_PER_MINUTE` | `10` | Login attempts per IP per minute |
 | `RATE_LIMIT_REGISTER_PER_MINUTE` | `5` | Sign-ups per IP per minute |
-| `AVAILABLE_MODELS` | `mock,claude-sonnet-5-5,claude-haiku-4-5` | Models selectable in settings |
+| `AVAILABLE_MODELS` | `claude-opus-5-5,claude-sonnet-5-5,claude-haiku-4-5` | Claude models selectable when `LLM_PROVIDER=anthropic` |
 | `COOKIE_SECURE` | `true` | `Secure` flag on the refresh cookie (browsers allow it on `localhost`) |
 | `CORS_ORIGINS` | `http://localhost:3000,http://localhost:5173` | Allowed browser origins |
 | `RATE_LIMIT_MESSAGES_PER_MINUTE` | `20` | Messages sent per user per minute |
@@ -112,9 +136,30 @@ frontend/   React + Vite app (features/auth, features/chat, features/settings), 
 docs/       Architecture notes and Mermaid diagrams
 ```
 
+## Using a real model
+
+The app runs fully offline with the mock model. To chat with Claude, set these in `.env`
+and restart:
+
+```bash
+LLM_PROVIDER=anthropic
+ANTHROPIC_API_KEY=sk-ant-...
+```
+
+Users can then choose Opus, Sonnet or Haiku in **Settings**.
+
 ## Built with a coding agent
 
 This project was built with Claude Code. [`CLAUDE.md`](CLAUDE.md) is the brief the agent
 follows: stack, layering rules, schema, API contract, security rules, and workflow.
-Work was done in phases, each planned first, then implemented, then checked with ruff,
+Work was done in phases. Each was planned first, then implemented, then checked with ruff,
 mypy and tests, and committed in small conventional commits.
+
+Checking the running app, not just the tests, caught several real bugs:
+
+- **Ordering:** messages written in one transaction tied on Postgres `now()` and could sort randomly. Timestamps are now set in Python.
+- **Redis outage:** redis-py's default retry backoff added about 3.5 s to every login while Redis was down. The client now fails fast.
+- **Stuck placeholder:** a new chat's history request could race the stream and leave a stuck `streaming` placeholder. History is now refetched when a stream closes.
+- **Settings:** saving the theme reset unsaved edits in the settings dialog.
+- **Accessibility:** the action buttons' accessible names didn't match their visible labels (WCAG 2.5.3).
+- **Docker restart:** the backend crash-looped after a Docker restart until migrations retried.

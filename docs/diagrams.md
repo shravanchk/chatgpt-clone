@@ -309,20 +309,25 @@ a stale or half-updated list in the cache.
 ```mermaid
 flowchart TB
     main[main.tsx] --> App
-    App --> Provider[Redux Provider] --> Theme["MUI ThemeProvider<br/>(light / dark / system)"] --> Router[React Router]
-    Router --> Login["/login<br/>features/auth"]
-    Router --> Chat["/ and /c/:id<br/>features/chat"]
-    Chat --> Sidebar[Sidebar: list, search, rename, delete]
-    Chat --> Thread[MessageList → MessageBubble → MarkdownRenderer]
-    Chat --> Composer[Composer]
-    Thread --> Rich["tables, lists, code highlighting,<br/>images, recharts, action buttons, copy"]
+    App --> Providers["AppProviders<br/>Redux store + MUI theme (light / dark / system)"] --> Router[React Router]
+    Router --> Gate["SessionGate<br/>restore session via refresh cookie"]
+    Gate --> Guest["GuestOnly: /login, /register"]
+    Gate --> Auth[RequireAuth]
+    Auth --> Layout["ChatLayout<br/>sidebar + useChatStream (survives navigation)"]
+    Layout --> Sidebar["Sidebar<br/>search, recency groups, rename, delete, export"]
+    Layout --> Page["ChatPage: / and /c/:id"]
+    Page --> List["MessageList<br/>history + live reply, load earlier, bottom pinning"]
+    Page --> Composer["Composer<br/>Enter to send, Stop while streaming"]
+    List --> Bubble["MessageBubble → MarkdownRenderer"]
+    Bubble --> Rich["CodeBlock (Prism) · ChartBlock (Recharts, lazy) ·<br/>tables · images · ActionButtons · CopyButton"]
 
     subgraph state[State]
-        RTK["RTK Query api<br/>(REST: auth, users, conversations)"]
-        Slices["slices: auth (access token in memory),<br/>chat (in-flight stream)"]
-        SSE["lib/sse: fetch + ReadableStream parser"]
+        RTK["RTK Query api<br/>auth, settings, conversations (infinite), messages (infinite)"]
+        Slices["slices: auth (token in memory) · chat (in-flight reply)"]
+        SSE["sendMessage thunk<br/>authorizedFetch + lib/sse parser"]
     end
-    Login -.-> RTK
     Sidebar -.-> RTK
+    List -.-> RTK
     Composer -.-> SSE -.-> Slices
+    SSE -. "message_end: upsert + refetch" .-> RTK
 ```

@@ -125,7 +125,24 @@ Tests run against a real PostgreSQL database (`chatgpt_test`), created on demand
 - **State:**
   - RTK Query (`app/api.ts`) handles REST calls. Features add their endpoints with `injectEndpoints`.
   - Redux slices hold client-only state: the access token (in memory only) and the in-flight stream.
-- **Streaming:** `EventSource` cannot send a POST, so messages are sent with `fetch` and the SSE response body is parsed from a `ReadableStream`.
+- **Streaming client:** `EventSource` cannot send a POST, so messages are sent with `fetch`, and `lib/sse.ts` parses the response body from a `ReadableStream`.
+  - The parser handles named events, multi-line data and keep-alive comments. It copes with chunk boundaries anywhere, including in the middle of a CRLF or a multi-byte character. A test tries every possible split point.
+  - `chatSlice.sendMessage` is a thunk that holds the in-flight reply (optimistic user message, live text, actions). When the stream closes, it merges the messages into the RTK Query cache and refetches that conversation's history.
+  - The refetch fixes a race: on a brand-new chat, the history request can land *after* the stream ends and would otherwise leave the server's `streaming` placeholder on screen.
+  - **Stop** aborts the `fetch`. The server sees the disconnect and saves the partial reply as `status=error`, and the UI shows it as "Response interrupted".
+- **Chat layout:** `ChatLayout` is a parent route holding the sidebar and the stream controller (`useChatStream`). The in-flight stream and its Stop button therefore survive the navigation from `/` to `/c/:id` when a new chat is created. Thread pages get `send` and `stop` through the outlet context.
+- **Rendering:** `MarkdownRenderer` uses react-markdown with GFM: tables, nested and task lists, strikethrough.
+  - **No raw HTML is rendered**, and unsafe URLs such as `javascript:` are dropped. Tests cover script injection and bad links.
+  - Fenced code is highlighted with Prism and has a language label and a copy button.
+  - ```` ```chart ```` blocks hold a JSON spec rendered with Recharts.
+    - The chart palette is a colour-blind-safe categorical palette, picked separately for light and dark, as the dataviz guidance recommends.
+    - The legend uses text colours and keeps series order, and a "View data" table is the accessible alternative.
+    - While a reply is streaming, an unfinished chart shows a placeholder instead of flashing raw JSON.
+- **Thread behaviour:**
+  - Follow-up action buttons appear on the latest reply. Their visible label is also their accessible name, with the full prompt as a tooltip description.
+  - Every reply has a copy button, and "load earlier" keeps your scroll position.
+  - The thread stays pinned to the bottom while you're there, including when content grows *after* rendering (lazy charts, images), which a `ResizeObserver` handles. Scrolling up stops the auto-scroll.
+- **Bundle:** routes and the chart renderer are code-split. Recharts (about 110 kB gzipped) loads only when a reply contains a chart, and the initial JavaScript is about 76 kB gzipped.
 - **Routing:** `/login`, `/register`, `/` (new chat), `/c/:conversationId`.
   - `SessionGate` restores the session once at startup, via `POST /auth/refresh`, before rendering any route.
   - `RequireAuth` sends anonymous users to `/login`, remembering where they were going.
@@ -162,13 +179,35 @@ Tests run against a real PostgreSQL database (`chatgpt_test`), created on demand
 
 ## Assumptions and limitations
 
-_Kept up to date as features land._
-
 - Single-region, single-instance deployment. Rate limits use a fixed window, which is simple but allows bursts at window edges.
 - `/api/v1/health` is a liveness check only. It does not check the DB or Redis.
 - **Rate limits are per IP.** Users behind one NAT share a budget. A per-account limit on failed logins would add protection against credential stuffing.
 - **Page-load cost for logged-out visitors:** each load makes two refresh attempts, the second 250 ms after the first, before showing the login page. This is the price of handling the two-tab race.
 - **The mock model ignores the conversation history.** It answers from the last message only. Anthropic-backed replies have no follow-up actions; generating them would need a second model call or structured output.
-- **Unsent or failed replies:** a reply interrupted by a disconnect stays saved with `status=error`. The UI will show it with a retry option rather than resuming the stream.
+- **Interrupted replies** stay saved with `status=error` and are shown as "Response interrupted". You can retry the prompt, but the stream doesn't resume.
+- **One stream at a time per tab.** While a reply streams, sending is disabled everywhere. That keeps the UI simple and matches ChatGPT.
+- **No message editing or regenerate, and no file uploads.** The `metadata.attachments` column is reserved for uploads.
+- **Possible scroll edge case:** once in manual testing, a large image loading for the first time, uncached, left the thread short of the bottom. It didn't happen again, and a sampled re-run stayed pinned throughout.
 - **Search uses `ILIKE`** with trigram indexes: good for substring search, but there's no relevance ranking or stemming. Postgres full-text search or a search engine would be the next step.
 - **No account features** for email verification, password reset or "log out everywhere". The data model supports the last one: it is `revoke_all_for_user`.
+
+## With more time
+
+1. **Real streaming resilience:** resume an interrupted stream instead of only showing the partial text. This would mean keeping generation in a background task that writes to Redis Streams, with the client reconnecting using `Last-Event-ID`.
+2. **Follow-up actions from real models**, via structured output or a cheap second call, so they also work with Claude, not just the mock.
+3. **Ranked search** with Postgres full-text search (`tsvector` with weights) or OpenSearch, plus highlighted matches.
+4. **Observability:**
+   - OpenTelemetry traces across nginx, the API, the DB and the LLM
+   - a readiness probe that checks the DB and Redis
+   - per-route latency and error metrics
+5. **Security hardening:**
+   - a Content-Security-Policy
+   - a per-account login-failure limit in addition to the per-IP one
+   - email verification and password reset
+   - "log out everywhere" in the UI, which the backend already supports
+6. **Product features:**
+   - editing a message and regenerating the reply
+   - file and image uploads (`metadata.attachments`)
+   - shareable read-only links
+   - conversation folders
+7. **Deployment:** CI running the existing lint, type and test commands, image builds, and a hosted demo.
