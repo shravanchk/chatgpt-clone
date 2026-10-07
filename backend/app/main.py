@@ -2,9 +2,11 @@
 
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.v1 import api_router
 from app.cache.redis import create_redis
@@ -13,8 +15,10 @@ from app.core.errors import register_exception_handlers
 from app.core.logging import configure_logging
 from app.core.middleware import REQUEST_ID_HEADER, RequestIdMiddleware
 from app.db.session import create_engine, create_session_factory
+from app.llm import create_llm_provider
 
 API_PREFIX = "/api/v1"
+STATIC_DIR = Path(__file__).parent / "static"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -32,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(title=settings.app_name, version="0.1.0", lifespan=lifespan)
     app.state.settings = settings
+    app.state.llm = create_llm_provider(settings)
 
     app.add_middleware(
         CORSMiddleware,
@@ -46,6 +51,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     register_exception_handlers(app)
     app.include_router(api_router, prefix=API_PREFIX)
+    # Images referenced by assistant messages (e.g. the mock provider's demo image).
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     return app
 
 

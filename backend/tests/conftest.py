@@ -9,6 +9,7 @@ Start the database first:  docker compose up -d db
 """
 
 import asyncio
+import json
 import os
 from collections.abc import AsyncIterator, Awaitable, Callable
 from pathlib import Path
@@ -70,7 +71,14 @@ def settings() -> Settings:
         jwt_secret="test-secret-that-is-at-least-32-bytes-long",
         bcrypt_rounds=4,  # fast hashing in tests
         cookie_secure=False,  # httpx only sends Secure cookies over https
+        mock_stream_delay_ms=0,
     )
+
+
+@pytest.fixture
+def frozen_rate_limit_clock(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the limiter to mid-window so a minute boundary can't reset counters mid-test."""
+    monkeypatch.setattr("app.cache.rate_limit._now", lambda: 1_800_000_030.0)
 
 
 @pytest.fixture
@@ -123,3 +131,29 @@ def register(client: AsyncClient) -> RegisterFn:
 
 def bearer(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+@pytest.fixture
+async def alice(register: RegisterFn) -> dict[str, str]:
+    """Auth headers for a registered user."""
+    return bearer((await register(email="alice@example.com", display_name="Alice"))["access_token"])
+
+
+@pytest.fixture
+async def bob(register: RegisterFn) -> dict[str, str]:
+    return bearer((await register(email="bob@example.com", display_name="Bob"))["access_token"])
+
+
+def parse_sse(body: str) -> list[tuple[str, Any]]:
+    """Parse a text/event-stream body into (event, json-data) pairs, skipping pings."""
+    events: list[tuple[str, Any]] = []
+    for block in body.replace("\r\n", "\n").split("\n\n"):
+        name, data = "message", []
+        for line in block.splitlines():
+            if line.startswith("event:"):
+                name = line[6:].strip()
+            elif line.startswith("data:"):
+                data.append(line[5:].lstrip())
+        if data:
+            events.append((name, json.loads("\n".join(data))))
+    return events

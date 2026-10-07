@@ -13,7 +13,9 @@ LOGIN = "/api/v1/auth/login"
 CREDENTIALS = {"email": "x@example.com", "password": "whatever-123"}
 
 
-async def test_login_is_rate_limited_per_ip(client: AsyncClient, app: FastAPI) -> None:
+async def test_login_is_rate_limited_per_ip(
+    client: AsyncClient, app: FastAPI, frozen_rate_limit_clock: None
+) -> None:
     limit = app.state.settings.rate_limit_login_per_minute
     for _ in range(limit):
         assert (await client.post(LOGIN, json=CREDENTIALS)).status_code == 401
@@ -39,7 +41,9 @@ async def test_requests_are_allowed_when_redis_is_down(client: AsyncClient, app:
     await app.state.redis.aclose()
 
 
-async def test_limiter_counts_per_key_and_expires_window(redis: Redis) -> None:
+async def test_limiter_counts_per_key_and_expires_window(
+    redis: Redis, frozen_rate_limit_clock: None
+) -> None:
     limiter = RateLimiter(redis)
 
     await limiter.hit("a", limit=1)

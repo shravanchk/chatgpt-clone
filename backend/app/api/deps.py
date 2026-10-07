@@ -8,15 +8,20 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.cache.conversation_cache import ConversationListCache
 from app.cache.rate_limit import RateLimiter
 from app.cache.redis import get_redis
 from app.core.config import Settings
 from app.core.errors import UnauthorizedError
 from app.core.security import decode_access_token
 from app.db.session import get_db
+from app.llm import get_llm_provider
+from app.llm.base import LLMProvider
 from app.models import User
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
+from app.services.chat_service import ChatService
+from app.services.conversation_service import ConversationService
 from app.services.settings_service import SettingsService
 
 
@@ -58,8 +63,31 @@ def get_settings_service(db: DbSession, settings: AppSettings) -> SettingsServic
     return SettingsService(db, settings)
 
 
+def get_conversation_cache(redis: RedisClient, settings: AppSettings) -> ConversationListCache:
+    return ConversationListCache(redis, settings.conversation_cache_ttl_seconds)
+
+
+ConversationCache = Annotated[ConversationListCache, Depends(get_conversation_cache)]
+
+
+def get_conversation_service(db: DbSession, cache: ConversationCache) -> ConversationService:
+    return ConversationService(db, cache)
+
+
+def get_chat_service(
+    request: Request,
+    db: DbSession,
+    cache: ConversationCache,
+    settings: AppSettings,
+    provider: Annotated[LLMProvider, Depends(get_llm_provider)],
+) -> ChatService:
+    return ChatService(db, request.app.state.session_factory, provider, cache, settings)
+
+
 AuthSvc = Annotated[AuthService, Depends(get_auth_service)]
 SettingsSvc = Annotated[SettingsService, Depends(get_settings_service)]
+ConversationSvc = Annotated[ConversationService, Depends(get_conversation_service)]
+ChatSvc = Annotated[ChatService, Depends(get_chat_service)]
 
 
 def rate_limit(scope: str, limit: Callable[[Settings], int]) -> Callable[..., Awaitable[None]]:
@@ -68,5 +96,14 @@ def rate_limit(scope: str, limit: Callable[[Settings], int]) -> Callable[..., Aw
     async def dependency(request: Request, redis: RedisClient, settings: AppSettings) -> None:
         client_ip = request.client.host if request.client else "unknown"
         await RateLimiter(redis).hit(f"{scope}:ip:{client_ip}", limit=limit(settings))
+
+    return dependency
+
+
+def user_rate_limit(scope: str, limit: Callable[[Settings], int]) -> Callable[..., Awaitable[None]]:
+    """Per-user fixed-window limit for an authenticated endpoint."""
+
+    async def dependency(user: CurrentUser, redis: RedisClient, settings: AppSettings) -> None:
+        await RateLimiter(redis).hit(f"{scope}:user:{user.id}", limit=limit(settings))
 
     return dependency

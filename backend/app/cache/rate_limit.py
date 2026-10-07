@@ -15,6 +15,10 @@ from app.core.errors import RateLimitedError
 logger = logging.getLogger(__name__)
 
 
+def _now() -> float:
+    return time.time()  # indirection so tests can pin the window without freezing time globally
+
+
 class RateLimiter:
     def __init__(self, redis: Redis) -> None:
         self.redis = redis
@@ -24,7 +28,7 @@ class RateLimiter:
 
         Fails open: if Redis is unavailable the request is allowed and a warning logged.
         """
-        now = time.time()
+        now = _now()
         window = int(now // window_seconds)
         redis_key = f"ratelimit:{key}:{window}"
         try:
